@@ -1,0 +1,7 @@
+domain: unicom.cn
+repo: security-group
+resources:
+- group: paas
+  kind: SecurityGroup
+  version: v1
+version: "2"
