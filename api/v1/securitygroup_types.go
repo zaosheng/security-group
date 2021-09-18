@@ -17,6 +17,7 @@ limitations under the License.
 package v1
 
 import (
+	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -28,17 +29,56 @@ type SecurityGroupSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Foo is an example field of SecurityGroup. Edit SecurityGroup_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	AccountId  string `json:"X-Account-ID"`
+	UserId  string `json:"X-User-ID"`
+	Name string `json:"name"`
+	Description string `json:"description,omitempty"`
 }
 
 // SecurityGroupStatus defines the observed state of SecurityGroup
 type SecurityGroupStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// Represents the latest available observations of a securitygroup's current state.
+	// +patchMergeKey=type
+	// +patchStrategy=merge
+	Conditions []SecurityGroupCondition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,6,rep,name=conditions"`
+	Id string `json:"id,omitempty"`
 }
 
+// SecurityCondition describes the state of a deployment at a certain point.
+type SecurityGroupCondition struct {
+	// Type of deployment condition.
+	Type SecurityGroupConditionType `json:"type" protobuf:"bytes,1,opt,name=type,casttype=SecurityConditionType"`
+	// Status of the condition, one of True, False, Unknown.
+	Status v1.ConditionStatus `json:"status" protobuf:"bytes,2,opt,name=status,casttype=k8s.io/api/core/v1.ConditionStatus"`
+	// The last time this condition was updated.
+	LastUpdateTime metav1.Time `json:"lastUpdateTime,omitempty" protobuf:"bytes,6,opt,name=lastUpdateTime"`
+	// Last time the condition transitioned from one status to another.
+	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty" protobuf:"bytes,7,opt,name=lastTransitionTime"`
+	// The reason for the condition's last transition.
+	Reason string `json:"reason,omitempty" protobuf:"bytes,4,opt,name=reason"`
+	// A human readable message indicating details about the transition.
+	Message string `json:"message,omitempty" protobuf:"bytes,5,opt,name=message"`
+}
+
+type SecurityGroupConditionType string
+
+// These are valid conditions of a deployment.
+const (
+	// Available means the deployment is available, ie. at least the minimum available
+	// replicas required are up and running for at least minReadySeconds.
+	SecurityGroupAvailable SecurityGroupConditionType = "Available"
+	// Progressing means the deployment is progressing. Progress for a deployment is
+	// considered when a new replica set is created or adopted, and when new pods scale
+	// up or old pods scale down. Progress is not estimated for paused deployments or
+	// when progressDeadlineSeconds is not specified.
+	SecurityGroupProgressing SecurityGroupConditionType = "Progressing"
+	// ReplicaFailure is added in a deployment when one of its pods fails to be created
+	// or deleted.
+	SecurityGroupFailure SecurityGroupConditionType = "ReplicaFailure"
+)
+
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:shortName=sg
 
 // SecurityGroup is the Schema for the securitygroups API
 type SecurityGroup struct {
