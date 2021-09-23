@@ -3,5 +3,8 @@ kind: SecurityGroup
 metadata:
   name: securitygroup-sample
 spec:
-  # Add fields here
-  foo: bar
+  name: "securitygroup-create"
+  accountId: "13855"
+  userId: "13855"
+  description: securitygroup-test-xiugai
+
