@@ -13,4 +13,4 @@ require (
 	sigs.k8s.io/controller-runtime v0.5.0
 )
 
-replace paas.unicom.cn/dcs-sdk => ../dcs-sdk
+replace paas.unicom.cn/dcs-sdk => ./dcs-sdk

@@ -1,0 +1,3 @@
+[submodule "dcs-sdk"]
+	path = dcs-sdk
+	url = http://172.31.4.50/jiazs10/dcs-sdk.git
