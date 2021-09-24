@@ -18,6 +18,7 @@ package v1
 
 import (
 	// "k8s.io/api/core/v1"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -53,7 +54,9 @@ type SecurityGroupCondition struct {
 	// The reason for the condition's last transition.
 	Reason string `json:"reason,omitempty"`
 	// A human readable message indicating details about the transition.
-	Message string `json:"message,omitempty"`
+	Message string `json:"rmessage,omitempty"`
+	// The last time this condition was updated.
+	LastTransitionTime string `json:"lastTransitionTime,omitempty"`
 }
 
 // +kubebuilder:object:root=true
