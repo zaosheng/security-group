@@ -62,12 +62,12 @@ spec:
                   lastTransitionTime:
                     description: The last time this condition was updated.
                     type: string
-                  reason:
-                    description: The reason for the condition's last transition.
-                    type: string
-                  rmessage:
+                  message:
                     description: A human readable message indicating details about
                       the transition.
+                    type: string
+                  reason:
+                    description: The reason for the condition's last transition.
                     type: string
                   status:
                     description: Status of the condition, one of True, False, Unknown.
@@ -75,6 +75,10 @@ spec:
                   type:
                     description: Type of securitygroup condition.
                     type: string
+                required:
+                - lastTransitionTime
+                - status
+                - type
                 type: object
               type: array
             id:

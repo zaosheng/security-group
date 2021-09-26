@@ -29,7 +29,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"strconv"
-	"time"
 
 	paasv1 "security-group/api/v1"
 )
@@ -116,6 +115,8 @@ func (r *SecurityGroupReconciler) applySecurityGroup(ctx context.Context, req ct
 	// 安全组存在，更新安全组
 	if sg.Status.Id != "" {
 		// fmt.Println("------安全组id存在，更新安全组")
+		condition_update := paasv1.SpecificationChanging()
+		sg.Status.SetConditions(condition_update)
 		getSecuritygroupsResponse, _, err := c.SecuritygroupApi.V2SecurityGroupsGet(nil, &dcsapi.SecuritygroupApiV2SecurityGroupsGetOpts{
 			XAccountID: optional.NewString(sg.Spec.AccountId),
 			XUserID:    optional.NewString(sg.Spec.UserId),
@@ -123,7 +124,10 @@ func (r *SecurityGroupReconciler) applySecurityGroup(ctx context.Context, req ct
 		// 获取安全组失败
 		if getSecuritygroupsResponse.Code != 200 {
 			// fmt.Println("------安全组id存在,获取安全组失败")
-			err := fmt.Errorf("获取安全组失败: %v, %v", getSecuritygroupsResponse.Message, err)
+			err := fmt.Errorf("failed to get Securitygroup when updating: %v, %v", getSecuritygroupsResponse.Message, err)
+			reconcile_update := paasv1.ReconcileError(err)
+			sg.Status.SetConditions(reconcile_update)
+			r.Update(ctx, sg)
 			return nil, err
 		}
 		oldSecurityGroup.Name = getSecuritygroupsResponse.Result.List[0].Name
@@ -136,6 +140,8 @@ func (r *SecurityGroupReconciler) applySecurityGroup(ctx context.Context, req ct
 		}
 
 		// 更新安全组
+		// 更新状态为修改中
+		r.Update(ctx, sg)
 		updateSecuritygroupsResponse, _, e := c.SecuritygroupApi.V2SecurityGroupsIdPut(nil, sg.Status.Id, &dcsapi.SecuritygroupApiV2SecurityGroupsIdPutOpts{
 			XAccountID: optional.NewString(sg.Spec.AccountId),
 			XUserID:    optional.NewString(sg.Spec.UserId),
@@ -143,33 +149,27 @@ func (r *SecurityGroupReconciler) applySecurityGroup(ctx context.Context, req ct
 		if updateSecuritygroupsResponse.Code != 200 {
 			// 更新安全组失败，更新状态
 			// fmt.Printf("------更新安全组失败: %+v\n", updateSecuritygroupsResponse)
-			err := fmt.Errorf("更新安全组失败: %+v, %+v", updateSecuritygroupsResponse.Message, e)
-			sgc := &paasv1.SecurityGroupCondition{
-				Type:               "Failure",
-				Status:             "False",
-				Reason:             "update securitygroup event",
-				Message:            updateSecuritygroupsResponse.Message,
-				LastTransitionTime: time.Now().Format(time.RFC3339),
-			}
-			sg.Status.Conditions = append(sg.Status.Conditions, *sgc)
+			err := fmt.Errorf("failed to update Securitygroup: %+v, %+v", updateSecuritygroupsResponse.Message, e)
+			reconcile_update := paasv1.ReconcileError(err)
+			sg.Status.SetConditions(reconcile_update)
 			r.Update(ctx, sg)
 			return oldSecurityGroup, err
 		}
-		// 更新安全组成功，更新状态
+		// 更新安全组成功，更新状态为avialable
 		// fmt.Printf("------更新安全组成功: %+v\n", updateSecuritygroupsResponse)
-		sgc := &paasv1.SecurityGroupCondition{
-			Type:               "Available",
-			Status:             "True",
-			Reason:             "update securitygroup event",
-			Message:            updateSecuritygroupsResponse.Message,
-			LastTransitionTime: time.Now().Format(time.RFC3339),
-		}
-		sg.Status.Conditions = append(sg.Status.Conditions, *sgc)
+		condition_update = paasv1.Available()
+		condition_update = condition_update.WithMessage(updateSecuritygroupsResponse.Message)
+		reconcile_update := paasv1.ReconcileSuccess()
+		sg.Status.SetConditions(condition_update, reconcile_update)
 		r.Update(ctx, sg)
 		return newSecurityGroup, nil
 	}
 	// 安全组不存在，创建安全组
 	// fmt.Println("------安全组id不存在，创建安全组")
+	// 更新状态为创建中
+	condition_create := paasv1.Creating()
+	sg.Status.SetConditions(condition_create)
+	r.Update(ctx, sg)
 	createSecuritygroupResponse, _, e := c.SecuritygroupApi.V2SecurityGroupsPost(nil, &dcsapi.SecuritygroupApiV2SecurityGroupsPostOpts{
 		XAccountID: optional.NewString(sg.Spec.AccountId),
 		XUserID:    optional.NewString(sg.Spec.UserId),
@@ -177,29 +177,19 @@ func (r *SecurityGroupReconciler) applySecurityGroup(ctx context.Context, req ct
 	if createSecuritygroupResponse.Code != 200 {
 		// 创建安全组失败，更新状态
 		// fmt.Printf("------创建安全组失败: %+v\n", createSecuritygroupResponse)
-
-		err := fmt.Errorf("创建安全组失败: %+v, %+v", createSecuritygroupResponse.Message, e)
-		sgc := &paasv1.SecurityGroupCondition{
-			Type:               "Failure",
-			Status:             "False",
-			Reason:             "create securitygroup event",
-			Message:            createSecuritygroupResponse.Message,
-			LastTransitionTime: time.Now().Format(time.RFC3339),
-		}
-		sg.Status.Conditions = append(sg.Status.Conditions, *sgc)
+		err := fmt.Errorf("failed to create Securitygroup: %+v, %+v", createSecuritygroupResponse.Message, e)
+		reconcile_create := paasv1.ReconcileError(err)
+		sg.Status.SetConditions(reconcile_create)
 		r.Update(ctx, sg)
 		return nil, err
 	}
-	//创建成功，更新状态
+	//创建成功，更新状态为avialable
 	// fmt.Printf("------创建安全组成功: %+v\n", createSecuritygroupResponse.Result)
-	sgc := &paasv1.SecurityGroupCondition{
-		Type:               "Available",
-		Status:             "True",
-		Reason:             "create securitygroup event",
-		Message:            createSecuritygroupResponse.Message,
-		LastTransitionTime: time.Now().Format(time.RFC3339),
-	}
-	sg.Status.Conditions = append(sg.Status.Conditions, *sgc)
+	condition_create = paasv1.Available()
+	condition_create = condition_create.WithMessage(createSecuritygroupResponse.Message)
+	reconcile_create := paasv1.ReconcileSuccess()
+	sg.Status.SetConditions(condition_create, reconcile_create)
+	r.Update(ctx, sg)
 	sg.Status.Id = strconv.FormatInt(createSecuritygroupResponse.Result.Id, 10)
 	r.Update(ctx, sg)
 	return newSecurityGroup, nil
@@ -211,22 +201,21 @@ func (r *SecurityGroupReconciler) cleanSecurityGroup(ctx context.Context, req ct
 		// fmt.Println("------安全组id不存在，直接返回")
 		return nil
 	}
+	// 更新状态为删除中
+	condition_delete := paasv1.Deleting()
+	sg.Status.SetConditions(condition_delete)
+	r.Update(ctx, sg)
 	getSecuritygroupsResponse, _, e := c.SecuritygroupApi.V2SecurityGroupsGet(nil, &dcsapi.SecuritygroupApiV2SecurityGroupsGetOpts{
 		XAccountID: optional.NewString(sg.Spec.AccountId),
 		XUserID:    optional.NewString(sg.Spec.UserId),
 		SearchById: optional.NewString(sg.Status.Id)})
 	// 获取安全组失败
 	if getSecuritygroupsResponse.Code != 200 {
-		// fmt.Println("------删除安全组时获取安全组失败，直接返回err")
-		err := fmt.Errorf("获取安全组失败: %+v, %+v", getSecuritygroupsResponse.Message, e)
-		sgc := &paasv1.SecurityGroupCondition{
-			Type:               "Failure",
-			Status:             "Unknow",
-			Reason:             "delete securitygroup event",
-			Message:            getSecuritygroupsResponse.Message,
-			LastTransitionTime: time.Now().Format(time.RFC3339),
-		}
-		sg.Status.Conditions = append(sg.Status.Conditions, *sgc)
+		// fmt.Println("------删除安全组时获取安全组失败，返回err")
+		// 更新删除时状态的message
+		err := fmt.Errorf("failed to get Securitygroup when deleting:%+v, %+v", getSecuritygroupsResponse.Message, e)
+		reconcile_delete := paasv1.ReconcileError(err)
+		sg.Status.SetConditions(reconcile_delete)
 		r.Update(ctx, sg)
 		return err
 	}
@@ -241,16 +230,10 @@ func (r *SecurityGroupReconciler) cleanSecurityGroup(ctx context.Context, req ct
 		XUserID:    optional.NewString(sg.Spec.UserId)})
 	if deleteSecuritygroupResponse.Code != 200 {
 		// fmt.Printf("------删除安全组失败: %+v\n", deleteSecuritygroupResponse)
-		err := fmt.Errorf("删除安全组失败: %+v, %+v", deleteSecuritygroupResponse.Message, e)
+		err := fmt.Errorf("failed to delete Securitygroup: %+v, %+v", deleteSecuritygroupResponse.Message, e)
 		// 更新状态
-		sgc := &paasv1.SecurityGroupCondition{
-			Type:               "Failure",
-			Status:             "False",
-			Reason:             "delete securitygroup event",
-			Message:            deleteSecuritygroupResponse.Message,
-			LastTransitionTime: time.Now().Format(time.RFC3339),
-		}
-		sg.Status.Conditions = append(sg.Status.Conditions, *sgc)
+		reconcile_delete := paasv1.ReconcileError(err)
+		sg.Status.SetConditions(reconcile_delete)
 		r.Update(ctx, sg)
 		return err
 	}
